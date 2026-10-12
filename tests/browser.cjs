@@ -1,6 +1,7 @@
 // Start app.py first. Requires Playwright and a Chromium executable.
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
+const {readFileSync}=require('node:fs');
 (async()=>{
   const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium'});
   try{
@@ -42,6 +43,14 @@ const assert=require('node:assert/strict');
         return green;
       });
       assert.ok(drawn>20,'The generated contour must actually be drawn on the canvas');
+      const downloadPromise=page.waitForEvent('download');
+      await page.locator('#viewer-export').click();
+      const download=await downloadPromise;
+      assert.equal(download.suggestedFilename(),'notcher-viewer-only.nc');
+      const text=readFileSync(await download.path(),'utf8');
+      assert.match(text,/VIEWER ONLY/);
+      assert.equal(text.split('\n').filter(line=>line.startsWith('G1 X')).length,Number(await page.locator('#count').textContent())-1);
+      assert.match(text,/G1 X-?\d+\.\d+ Y-?\d+\.\d+ Z-?\d+\.\d+/);
     }
     if(process.env.NOTCHER_TEST_MODEL){
       await page.goto(base);

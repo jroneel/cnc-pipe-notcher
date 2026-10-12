@@ -178,6 +178,21 @@ def plan(mesh, settings):
                          "Amber contour estimates the inner-wall axial intersection; it is not a material-removal simulation."]}
 
 
+def viewer_gcode(result):
+    """Draw the physical contour in ordinary XYZ; never a machine program."""
+    lines = ['(VIEWER ONLY - XYZ CONTOUR - DO NOT RUN ON THE NOTCHER)',
+             '(Tube length is X; Y/Z describe the stock cross-section)',
+             '(No rotary kinematics, torch commands, pivot compensation or machining moves)',
+             '(Selected outer end contour only; interior holes are not included)',
+             'G21 G90 G94']
+    for index, point in enumerate(result['points']):
+        move = 'G0' if index == 0 else 'G1'
+        feed = '' if index == 0 else f" F{result['feed']:.3f}"
+        lines.append(f"{move} X{point['x']:.4f} Y{point['y']:.4f} Z{point['z']:.4f}{feed}")
+    lines.append('M2')
+    return '\n'.join(lines)+'\n'
+
+
 def gcode(result, settings):
     if settings.get("controller") != "grblhal":
         raise CAMError("Export requires grblHAL configured for X/Z/A/B and G93")

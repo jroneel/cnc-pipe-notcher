@@ -2,7 +2,7 @@ import io
 import hashlib
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response, send_from_directory
-from cam import CAMError, load_mesh, plan, gcode
+from cam import CAMError, load_mesh, plan, gcode, viewer_gcode
 from werkzeug.exceptions import HTTPException
 from stock import detect_stock
 
@@ -57,8 +57,13 @@ def create_plan():
         result = plan(mesh, settings)
         result['detected_stock'] = detected
         if request.form.get("export") == "yes":
-            return Response(gcode(result, request.form), mimetype="text/plain",
-                            headers={"Content-Disposition": 'attachment; filename="notcher.nc"'})
+            export_format = request.form.get('export_format', 'machine')
+            if export_format not in ('machine', 'viewer'):
+                raise CAMError('Unknown G-code export format')
+            program = viewer_gcode(result) if export_format == 'viewer' else gcode(result, request.form)
+            filename = 'notcher-viewer-only.nc' if export_format == 'viewer' else 'notcher.nc'
+            return Response(program, mimetype="text/plain",
+                            headers={"Content-Disposition": f'attachment; filename="{filename}"'})
         return jsonify(result)
     except (CAMError, ValueError, IndexError, TypeError) as exc:
         return jsonify(error=str(exc)), 400

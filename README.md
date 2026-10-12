@@ -55,6 +55,10 @@ The bevel is relative to the **radial cutting direction**. It is not a constant 
 
 ## Output and qualification
 
+**Download viewer G-code (.nc)** exports the selected physical outer-end contour as ordinary XYZ `G0/G1` moves in millimetres. It opens in viewers that cannot display rotary A/B motion. This file does not use torch commands, machine pivot offsets or rotary kinematics and must not run on the notcher. It shows the outer contour only; interior holes and bevel material removal are not included. Viewer export does not require machine/controller confirmation.
+
+**Download grblHAL machine G-code (.nc)** exports the actual X/Z/A/B coordinated program with the machine confirmation checks below. A viewer must understand rotary axes and inverse-time feed to simulate that program correctly; an XYZ viewer may show only the head's linear movement.
+
 Requires grblHAL configured with X/Z/A/B and G93 inverse-time support. Stock GRBL does not support this layout. Cutting F is reciprocal minutes, computed from contour segment length and requested surface feed. M3/M5 control plasma and provisional G4 P0.5 provides pierce dwell. Confirm these behaviours on your particular build. The program retracts to a common safe pivot height before positioning/tilting and after torch-off, and ends without automatically rewinding A.
 
 This prototype has no kerf compensation, lead-in/out, calibrated pierce-height/delay, THC, collision detection, soft-limit validation, rotary acceleration checks, interior-hole toolpaths or STEP reader. Sharp corners can demand high rotary/vertical acceleration. The preview shows a cut contour, not a full model or material-removal simulation. Programs need controller simulation and a torch-off dry run before machine use. No actual machine operation has been validated.
