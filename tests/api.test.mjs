@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readPlanResponse, planURL} from '../static/api.mjs';
+import {readPlanResponse, planURL, readModelResponse} from '../static/api.mjs';
 
 test('XML proxy errors have an actionable error rather than a JSON parser failure', async () => {
   for (const status of [200, 403, 502]) {
@@ -38,4 +38,12 @@ test('detection response validates shape and dimensions', async () => {
   assert.deepEqual(await readPlanResponse(new Response(JSON.stringify(data), {headers:{'Content-Type':'application/json'}}),false,true),data);
   await assert.rejects(readPlanResponse(new Response('{"shape":"round","width":50}', {headers:{'Content-Type':'application/json'}}),false,true),/invalid tubing/);
   assert.equal(planURL('https://host/proxy/5000/','detect'),'https://host/proxy/5000/api/detect');
+});
+
+test('model responses validate mesh indices and reject non-JSON proxy failures',async()=>{
+  const model={vertices:[[0,0,0],[1,0,0],[0,1,0]],faces:[[0,1,2]]};
+  assert.deepEqual(await readModelResponse(new Response(JSON.stringify(model),{headers:{'Content-Type':'application/json'}})),model);
+  const invalid={...model,faces:[[0,1,999]]};
+  await assert.rejects(readModelResponse(new Response(JSON.stringify(invalid),{headers:{'Content-Type':'application/json'}})),/Invalid model geometry/);
+  await assert.rejects(readModelResponse(new Response('<html>Error</html>',{status:502,headers:{'Content-Type':'text/html'}})),/HTTP 502/);
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {readPlanResponse, planURL} from '../static/api.mjs';
+import {readPlanResponse, planURL, readModelResponse} from '../static/api.mjs';
 import {convertInputs, normalizeFormData, displayLength, fillStockInputs} from '../static/units.mjs';
 
 function ui(stock, failure=false) {
@@ -22,11 +22,15 @@ function ui(stock, failure=false) {
   nodes['#prusa-export']=element();
   const document={querySelector:selector=>selector==='form'?form:selector==='canvas'?canvas:nodes[selector],querySelectorAll:()=>[]};
   let requests=0;
-  const fetch=async url=>{requests++;assert.equal(url,'http://localhost:5000/api/detect');return new Response(JSON.stringify(failure?{error:'Cannot identify tubing'}:stock),{status:failure?400:200,headers:{'Content-Type':'application/json'}});};
+  const fetch=async url=>{
+    if(url==='http://localhost:5000/api/model')return new Response(JSON.stringify({vertices:[[0,0,0],[1,0,0],[0,1,0]],faces:[[0,1,2]]}),{headers:{'Content-Type':'application/json'}});
+    requests++;assert.equal(url,'http://localhost:5000/api/detect');return new Response(JSON.stringify(failure?{error:'Cannot identify tubing'}:stock),{status:failure?400:200,headers:{'Content-Type':'application/json'}});
+  };
   let script=readFileSync(new URL('../templates/index.html',import.meta.url),'utf8').split('<script type="module">')[1].split('</script>')[0];
   script=script.replace(/^const .*await import.*;$/gm,'');
   vm.runInNewContext(script,{document,location:{href:'http://localhost:5000/'},window:{addEventListener(){}},devicePixelRatio:1,
-    URL,FormData,AbortController,fetch,readPlanResponse,planURL,convertInputs,normalizeFormData,displayLength,fillStockInputs});
+    URL,FormData,AbortController,fetch,readPlanResponse,planURL,readModelResponse,convertInputs,normalizeFormData,displayLength,fillStockInputs,
+    createViewer:()=>({clearModel(){},clearProgram(){},setModel(){},setProgram(){}})});
   fields.model.files=[new Blob(['mesh'])];
   return {fields,nodes,requests:()=>requests};
 }

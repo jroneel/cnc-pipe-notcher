@@ -40,7 +40,7 @@ class StockTests(unittest.TestCase):
             field=re.search(r'<input name="'+name+r'"[^>]*>',html).group()
             self.assertNotIn('required',field)
             self.assertIn('disabled',field)
-        self.assertEqual(len(re.findall(r'\?v=[0-9a-f]{16}',html)),2)
+        self.assertEqual(len(re.findall(r'\?v=[0-9a-f]{16}',html)),3)
 
     def test_all_stock_types_and_sizes(self):
         for shape, width, height, wall in [('round',76.2,76.2,2.5),('square',63.5,63.5,4),('rectangle',80,45,2),('rectangle',30,70,1.5)]:

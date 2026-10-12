@@ -175,7 +175,7 @@ def plan(mesh, settings):
                          "Rectangular corner geometry uses the detected or specified outer corner radius.",
                          "Feed is converted to inverse time for coordinated linear/rotary motion.",
                          "B bevel is relative to the radial cutting direction, not the local contour or rectangular face normal.",
-                         "Amber contour estimates the inner-wall axial intersection; it is not a material-removal simulation."]}
+                         "The preview reconstructs torch-tip motion from G-code; it is not a material-removal simulation."]}
 
 
 def viewer_gcode(result):
@@ -229,6 +229,13 @@ def gcode(result, settings):
         raise CAMError("Enter the measured B-pivot to torch-tip distance for bevel export")
     if settings.get("confirmed") != "yes":
         raise CAMError("Confirm the X/Z/A/B axis configuration before export")
+    return machine_program(result)
+
+
+def machine_program(result):
+    """Same machine program for local simulation and guarded file export."""
+    if result['bevel'] != 0 and result['pivot'] <= 0:
+        raise CAMError('Enter the measured B-pivot to torch-tip distance for a bevel machine preview')
     points = result["points"]
     safe_z = max(math.hypot(p['y'],p['z']) for p in points)+result['pivot']+result["clearance"]+result['standoff']
     bevel = result['bevel']

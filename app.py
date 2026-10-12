@@ -2,13 +2,13 @@ import io
 import hashlib
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response, send_from_directory
-from cam import CAMError, load_mesh, plan, gcode, viewer_gcode, prusa_viewer_gcode
+from cam import CAMError, load_mesh, plan, gcode, viewer_gcode, prusa_viewer_gcode, machine_program
 from werkzeug.exceptions import HTTPException
 from stock import detect_stock
 
 class CAMApp(Flask):
     def send_static_file(self, filename):
-        if filename.endswith('.mjs'):
+        if filename.endswith(('.mjs','.js')):
             # Windows registry mappings can label .mjs as binary data. Browsers
             # reject such modules. Always send fresh, explicitly typed JavaScript.
             response = send_from_directory(self.static_folder, filename,
@@ -37,6 +37,7 @@ def index():
 
 
 @app.post("/api/detect")
+@app.post("/api/model")
 @app.post("/api/plan")
 def create_plan():
     upload = request.files.get("model")
@@ -45,6 +46,10 @@ def create_plan():
     try:
         extension = upload.filename.rsplit(".", 1)[-1].lower()
         mesh = load_mesh(io.BytesIO(upload.read()), extension)
+        if request.path == '/api/model':
+            vertices = mesh.vertices.copy()
+            vertices[:,1:] -= mesh.bounds.mean(axis=0)[1:]
+            return jsonify(vertices=vertices.tolist(),faces=mesh.faces.tolist())
         if request.path == "/api/detect":
             return jsonify(detect_stock(mesh))
         settings = request.form.to_dict()
@@ -68,6 +73,7 @@ def create_plan():
                 program,filename = gcode(result,request.form),'notcher.nc'
             return Response(program, mimetype="text/plain",
                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+        result['machine_gcode'] = machine_program(result)
         return jsonify(result)
     except (CAMError, ValueError, IndexError, TypeError) as exc:
         return jsonify(error=str(exc)), 400

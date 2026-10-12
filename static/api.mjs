@@ -39,3 +39,14 @@ export function planURL(pageURL, endpoint = 'plan') {
   page.hash = '';
   return page.href;
 }
+
+export async function readModelResponse(response){
+  const type=(response.headers.get('content-type')||'').split(';')[0].trim();
+  if(type!=='application/json')throw new Error(`Model request returned ${type||'an unknown type'} (HTTP ${response.status})`);
+  const model=await response.json();
+  if(!response.ok)throw new Error(model.error||`Model request failed (HTTP ${response.status})`);
+  if(!Array.isArray(model.vertices)||!Array.isArray(model.faces)||!model.vertices.length||!model.faces.length||
+    !model.vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite))||
+    !model.faces.every(face=>Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<model.vertices.length)))throw new Error('Invalid model geometry returned by API');
+  return model;
+}

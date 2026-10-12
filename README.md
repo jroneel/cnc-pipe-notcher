@@ -24,6 +24,14 @@ node --test tests/*.test.mjs
 
 With Playwright available to Node and Chromium installed, test uploads against the running app using `node tests/browser.cjs`. Set `CHROMIUM_PATH` for an alternate browser executable or `NOTCHER_URL` for an alternate app address. `NOTCHER_TEST_MODEL` can point to the supplied 3 × 1-inch tube regression file for an additional upload check; the original uploaded file is not stored in this repository.
 
+## Built-in machine G-code preview
+
+Uploading STL/OBJ displays the full original mesh, even if stock detection fails. Generate a preview to create the same X/Z/A/B program used by machine export and parse its actual motion blocks. Controls show/hide the part, cutting tip path, torch-off motion, and current torch position; orbit, zoom, pan, fit the whole part or focus the cut. Playback and the motion slider inspect blocks and their source G-code lines. The program is available in the expandable code panel.
+
+The part is stationary in the preview. A-axis rotation is mapped into part coordinates; the B tilt and measured pivot-to-tip length reconstruct the tip and torch direction. With angle a and tilt b, the tip is `[X + L*sin(b), (Z - L*cos(b))*cos(a), (Z - L*cos(b))*sin(a)]`. Linear interpolation of rotary commands is sampled into curved paths. Green is torch-on cutting; amber includes all torch-off movements, including approach/retraction; the current marker is pink when cutting and blue otherwise.
+
+This preview uses the generated program, not the planned contour points. Unknown initial machine axis positions are omitted until all axes are defined. Playback is by block, not real elapsed time; the full path remains visible during playback. No collision checking, kerf/material removal or cutting-process validation is performed. Preview generation does not require export confirmation, but machine download still does. A measured nonzero pivot length is required to generate a bevel program. WebGL is required; the renderer is bundled locally with no CDN calls or Node installation required at runtime.
+
 ## Inputs
 
 Uploading a model automatically detects round, square or rectangular stock and fills its outer width/diameter, height and wall thickness, plus outer and inner corner radii for rounded tubing. The detector measures outer and inner boundaries at seven positions along X, requires at least two complete supported sections, and checks agreement between the measurable sections. Detection also runs before automatic planning/export, so stale form dimensions cannot override the file. Values are mesh-derived measurements, not nominal manufacturer sizes.
@@ -51,7 +59,7 @@ Automatic toolpath surface points and Z height follow the measured outer mesh cr
 
 Enter the measured pivot-to-tip distance L. For signed tilt b, the commanded pivot is `X = model_edge_X - L*sin(b)` and `Z = stock_radius + standoff + L*cos(b)`. At B0, the pivot must therefore be L above the tip; use that convention when setting Z zero. The physical torch direction must match this definition. This assumes the tool tip lies on the tilt arm, with no other offsets; an offset head needs a different model.
 
-The bevel is relative to the **radial cutting direction**. It is not a constant angle relative to a notch's local contour normal or a rectangular face normal. A single tilt axis cannot generally satisfy arbitrary bevel orientations. For automatically detected rounded tubing, the amber preview uses the measured radial distance between outer and inner profiles, multiplied by `tan(b)`. Other stock modes use the nominal `wall*tan(b)` allowance. This remains an estimated intersection, not a full material-removal simulation. The outer-edge path remains at the imported contour, with head pivot compensation applied in G-code.
+The bevel is relative to the **radial cutting direction**. It is not a constant angle relative to a notch's local contour normal or a rectangular face normal. A single tilt axis cannot generally satisfy arbitrary bevel orientations. For automatically detected rounded tubing, the contour allowance uses the measured radial distance between outer and inner profiles, multiplied by `tan(b)`. Other stock modes use the nominal `wall*tan(b)` allowance. This remains an estimated intersection, not a full material-removal simulation. The outer-edge path remains at the imported contour, with head pivot compensation applied in G-code.
 
 ## Output and qualification
 
@@ -63,6 +71,6 @@ The bevel is relative to the **radial cutting direction**. It is not a constant 
 
 Requires grblHAL configured with X/Z/A/B and G93 inverse-time support. Stock GRBL does not support this layout. Cutting F is reciprocal minutes, computed from contour segment length and requested surface feed. M3/M5 control plasma and provisional G4 P0.5 provides pierce dwell. Confirm these behaviours on your particular build. The program retracts to a common safe pivot height before positioning/tilting and after torch-off, and ends without automatically rewinding A.
 
-This prototype has no kerf compensation, lead-in/out, calibrated pierce-height/delay, THC, collision detection, soft-limit validation, rotary acceleration checks, interior-hole toolpaths or STEP reader. Sharp corners can demand high rotary/vertical acceleration. The preview shows a cut contour, not a full model or material-removal simulation. Programs need controller simulation and a torch-off dry run before machine use. No actual machine operation has been validated.
+This prototype has no kerf compensation, lead-in/out, calibrated pierce-height/delay, THC, collision detection, soft-limit validation, rotary acceleration checks, interior-hole toolpaths or STEP reader. Sharp corners can demand high rotary/vertical acceleration. The preview shows the full original mesh and G-code-derived tip motion, but not material removal or collision simulation. Programs need controller simulation and a torch-off dry run before machine use. No actual machine operation has been validated.
 
 No external service or credentials are required.

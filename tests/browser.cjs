@@ -3,7 +3,7 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
 (async()=>{
-  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium'});
+  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--enable-unsafe-swiftshader']});
   try{
     const page=await browser.newPage(),errors=[],modules=[];
     page.on('pageerror',e=>errors.push(e.message));
@@ -26,6 +26,8 @@ const {readFileSync}=require('node:fs');
       await page.goto(base);
       await page.locator('#model').setInputFiles(`examples/${model}-oblique-tube.stl`);
       await page.waitForFunction(()=>document.querySelector('input[name=width]').value!=='');
+      await page.waitForFunction(()=>Number(document.querySelector('#preview').dataset.modelFaces)>0);
+      assert.equal(await page.locator('#play').isDisabled(),true);
       assert.equal(await page.locator('#shape').inputValue(),shape);
       assert.ok(Math.abs(Number(await page.locator('input[name=corner_radius]').inputValue())-radius)<.01);
       for(const [name,value] of [['width',50],['height',height],['wall',3]]){
@@ -36,13 +38,30 @@ const {readFileSync}=require('node:fs');
       }
       await page.getByRole('button',{name:'Generate toolpath preview'}).click();
       await page.waitForFunction(()=>document.querySelector('#count').textContent!=='—');
-      const drawn=await page.locator('#preview').evaluate(canvas=>{
-        const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      await page.waitForFunction(()=>document.querySelector('#machine-code').value.includes('G93'));
+      await page.locator('#focus-cut').click();
+      const drawn=await page.locator('#preview').evaluate(async canvas=>{
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;
+        const ctx=copy.getContext('2d');ctx.drawImage(canvas,0,0);
+        const pixels=ctx.getImageData(0,0,copy.width,copy.height).data;
         let green=0;
-        for(let i=0;i<pixels.length;i+=4)if(pixels[i+1]>150&&pixels[i]<140)green++;
+        for(let i=0;i<pixels.length;i+=4)if(pixels[i+1]>150&&pixels[i+1]>pixels[i+2]+8&&pixels[i+1]>pixels[i]+40)green++;
         return green;
       });
       assert.ok(drawn>20,'The generated contour must actually be drawn on the canvas');
+      assert.ok(Number(await page.locator('#preview').getAttribute('data-gcode-segments'))>0);
+      await page.locator('#reset-motion').click();
+      assert.match(await page.locator('#motion-status').textContent(),/Block 1\//);
+      await page.locator('#motion-progress').evaluate(el=>{el.value='500';el.dispatchEvent(new Event('input',{bubbles:true}));});
+      assert.match(await page.locator('#motion-status').textContent(),/TORCH ON/);
+      await page.locator('#view-model').uncheck();
+      await page.locator('#view-model').check();
+      await page.locator('#view-cuts').uncheck();
+      await page.locator('#view-cuts').check();
+      await page.locator('#play').click();
+      await page.waitForFunction(()=>document.querySelector('#play').textContent==='Pause');
+      await page.locator('#play').click();
       const downloadPromise=page.waitForEvent('download');
       await page.locator('#viewer-export').click();
       const download=await downloadPromise;
