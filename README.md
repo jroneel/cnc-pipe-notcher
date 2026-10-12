@@ -13,6 +13,8 @@ python3 -m venv .venv
 
 The app listens on loopback port 5000. Use your development environment's port access to view it. No machine connection or automatic execution is implemented.
 
+After pulling Python code changes, restart `app.py` and reload the browser. Templates refresh automatically; versioned JavaScript URLs keep modules current. Preview is enabled after the application loads and never uses native form navigation. Startup failures appear in the status panel.
+
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 node --test tests/*.test.mjs

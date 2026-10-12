@@ -8,6 +8,7 @@ from stock import detect_stock
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 
 @app.context_processor

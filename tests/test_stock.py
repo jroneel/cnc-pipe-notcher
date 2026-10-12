@@ -15,6 +15,10 @@ class StockTests(unittest.TestCase):
         response=app.test_client().get('/')
         html=response.data.decode()
         self.assertEqual(response.headers['Cache-Control'],'no-store')
+        self.assertTrue(app.config['TEMPLATES_AUTO_RELOAD'])
+        self.assertIn('id="generate" disabled',html)
+        self.assertIn("event => event.preventDefault()",html)
+        self.assertIn('Application could not start:',html)
         for name in ['width','height','wall']:
             field=re.search(r'<input name="'+name+r'"[^>]*>',html).group()
             self.assertNotIn('required',field)

@@ -17,6 +17,7 @@ function ui(stock, failure=false) {
   nodes['#stock-mode'].value='auto';
   const canvas=element();canvas.clientWidth=500;canvas.clientHeight=400;
   canvas.getContext=()=>new Proxy({}, {get:()=>()=>{}});
+  nodes['#generate']=element();
   const document={querySelector:selector=>selector==='form'?form:selector==='canvas'?canvas:nodes[selector],querySelectorAll:()=>[]};
   let requests=0;
   const fetch=async url=>{requests++;assert.equal(url,'http://localhost:5000/api/detect');return new Response(JSON.stringify(failure?{error:'Cannot identify tubing'}:stock),{status:failure?400:200,headers:{'Content-Type':'application/json'}});};
