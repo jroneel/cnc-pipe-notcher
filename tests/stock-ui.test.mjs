@@ -9,7 +9,7 @@ function ui(stock, failure=false) {
   const element=(value='')=>({value, textContent:'',className:'',disabled:false,events:{},
     addEventListener(name,fn){this.events[name]=fn;},setAttribute(k,v){this[k]=v;},
     hasAttribute(k){return k in this;},getAttribute(k){return this[k];}});
-  const fields=Object.fromEntries(['width','height','wall','shape','feed','standoff','clearance','pivot','model'].map(name=>[name,element()]));
+  const fields=Object.fromEntries(['width','height','wall','corner_radius','shape','feed','standoff','clearance','pivot','model'].map(name=>[name,element()]));
   fields.model.files=[];
   fields.feed.value='800';fields.standoff.value='1.5';fields.clearance.value='10';fields.pivot.value='0';
   const form=element();form.elements={namedItem:name=>fields[name]};
@@ -30,7 +30,7 @@ function ui(stock, failure=false) {
 }
 
 test('file selection automatically fills read-only stock dimensions in selected units',async()=>{
-  const {fields,nodes,requests}=ui({shape:'rectangle',width:76.2,height:50.8,wall:3.175});
+  const {fields,nodes,requests}=ui({shape:'rectangle',width:76.2,height:50.8,wall:3.175,corner_radius:6.35});
   assert.equal(fields.width.readOnly,true);
   assert.equal(fields.width.required,false);
   assert.equal(fields.width.disabled,true);
@@ -42,6 +42,7 @@ test('file selection automatically fills read-only stock dimensions in selected 
   assert.equal(fields.width.value,'3');
   assert.equal(fields.height.value,'2');
   assert.equal(fields.wall.value,'0.125');
+  assert.equal(fields.corner_radius.value,'0.25');
   assert.match(nodes['#stock-status'].textContent,/Detected rectangle/);
   nodes['#units'].events.click();
   assert.equal(fields.width.value,'76.2');

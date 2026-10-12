@@ -17,6 +17,9 @@ export async function readPlanResponse(response, exporting = false, stock = fals
         !['width', 'height', 'wall'].every(k => Number.isFinite(data[k]) && data[k] > 0)) {
       throw new Error('The API returned invalid tubing dimensions.');
     }
+    if (data.corner_radius !== undefined && (!Number.isFinite(data.corner_radius) || data.corner_radius < 0)) {
+      throw new Error('The API returned an invalid corner radius.');
+    }
     return data;
   }
   if (exporting || !Array.isArray(data?.points) || data.points.length < 2 ||

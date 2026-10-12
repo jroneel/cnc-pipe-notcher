@@ -33,13 +33,20 @@ def load_mesh(stream, extension):
     return mesh
 
 
-def stock_point(angle, shape, width, height):
+def stock_point(angle, shape, width, height, corner_radius=0):
     c, s = math.cos(angle), math.sin(angle)
     if shape == "round":
         radius = width / 2
         return radius*c, radius*s
     scale = min(width / (2*abs(c)) if abs(c)>1e-12 else math.inf,
                 height / (2*abs(s)) if abs(s)>1e-12 else math.inf)
+    if corner_radius > 0:
+        y, z = abs(scale*c), abs(scale*s)
+        cy, cz = width/2-corner_radius, height/2-corner_radius
+        if y > cy and z > cz:
+            projection = abs(c)*cy+abs(s)*cz
+            discriminant = projection**2-(cy**2+cz**2-corner_radius**2)
+            scale = projection+math.sqrt(max(discriminant, 0))
     return scale*c, scale*s
 
 
@@ -63,6 +70,9 @@ def plan(mesh, settings):
     width = number(settings, "width", 50, 1, 2000)
     height = width if shape != "rectangle" else number(settings, "height", 40, 1, 2000)
     wall = number(settings, "wall", 3, .1, min(width, height)/2-.01)
+    corner_radius = 0 if shape == 'round' else number(settings, 'corner_radius', 0, 0, min(width,height)/2)
+    if 0 < corner_radius < wall:
+        raise CAMError("Outer corner radius must be at least wall thickness for a uniform-wall rounded tube")
     samples = int(number(settings, "samples", 360, 36, 1440))
     bevel = number(settings, "bevel", 0, -60, 60)
     pivot = number(settings, "pivot", 0, 0, 1000)
@@ -86,11 +96,15 @@ def plan(mesh, settings):
     if shape != "round":
         corner = math.atan2(height, width)
         angles += [corner, math.pi-corner, math.pi+corner, 2*math.pi-corner]
+        if corner_radius:
+            for y,z in [(width/2, height/2-corner_radius),(width/2-corner_radius,height/2)]:
+                tangent = math.atan2(z,y)
+                angles += [tangent, math.pi-tangent, math.pi+tangent, 2*math.pi-tangent]
     angles = sorted(set(round(float(a), 12) for a in angles))
     points = []
     bevel_offset = wall*math.tan(math.radians(bevel))
     for angle in angles:
-        y, z = stock_point(angle, shape, width, height)
+        y, z = stock_point(angle, shape, width, height, corner_radius)
         radius = math.hypot(y, z)
         # Sample just inside the stock envelope to avoid a tangent mesh ray.
         inset = min(wall*.05, .05)
@@ -105,12 +119,13 @@ def plan(mesh, settings):
                        "machine_z": radius+standoff+pivot*math.cos(math.radians(bevel))})
     points.append({**points[0], "a": 360.0})
     return {"points": points, "shape": shape, "width": width, "height": height,
+            "corner_radius": corner_radius, "inner_corner_radius": max(corner_radius-wall,0),
             "wall": wall, "bevel": bevel, "bevel_offset": bevel_offset, "pivot": pivot,
             "feed": feed, "clearance": clearance, "standoff": standoff,
             "bounds": mesh.bounds.tolist(), "triangles": len(mesh.faces),
             "warnings": ["End contours only; holes and disconnected profiles are rejected.",
                          "No kerf compensation, lead-in, collision checking or automatic torch-height control.",
-                         "Rectangular stock assumes sharp corners; rounded-corner tube needs a measured stock profile.",
+                         "Rectangular corner geometry uses the detected or specified outer corner radius.",
                          "Feed is converted to inverse time for coordinated linear/rotary motion.",
                          "B bevel is relative to the radial cutting direction, not the local contour or rectangular face normal.",
                          "Amber contour estimates the inner-wall axial intersection; it is not a material-removal simulation."]}

@@ -1,4 +1,4 @@
-const fields = ['width', 'height', 'wall', 'feed', 'standoff', 'clearance', 'pivot'];
+const fields = ['width', 'height', 'wall', 'corner_radius', 'feed', 'standoff', 'clearance', 'pivot'];
 const values = new WeakMap();
 const limits = new WeakMap();
 const scale = unit => unit === 'in' ? 25.4 : 1;
@@ -43,9 +43,11 @@ export function displayLength(mm, unit) {
 
 export function fillStockInputs(form, stock, unit) {
   form.elements.namedItem('shape').value = stock.shape;
-  for (const name of ['width', 'height', 'wall']) {
+  for (const name of ['width', 'height', 'wall', 'corner_radius']) {
     const input = form.elements.namedItem(name);
-    input.value = String(Number((stock[name] / scale(unit)).toPrecision(15)));
-    values.set(input, {mm: stock[name], display: input.value});
+    if (!input) continue;
+    const mm = stock[name] ?? 0;
+    input.value = String(Number((mm / scale(unit)).toPrecision(15)));
+    values.set(input, {mm, display: input.value});
   }
 }

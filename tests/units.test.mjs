@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {convertInputs, normalizeFormData, displayLength, fillStockInputs} from '../static/units.mjs';
 
 function fixture() {
-  const inputs = Object.fromEntries(Object.entries({width:'50',height:'40',wall:'3',feed:'800',standoff:'1.5',clearance:'10',pivot:'100',bevel:'30',samples:'360'}).map(([name,value]) => {
+  const inputs = Object.fromEntries(Object.entries({width:'50',height:'40',wall:'3',corner_radius:'8',feed:'800',standoff:'1.5',clearance:'10',pivot:'100',bevel:'30',samples:'360'}).map(([name,value]) => {
     const attributes = {min: '0', max: '1000'};
     return [name, {value, hasAttribute: k => k in attributes,
       getAttribute: k => attributes[k], setAttribute: (k,v) => attributes[k]=v}];
@@ -52,11 +52,13 @@ test('blank values remain blank; display values reflect selected units', () => {
 test('detected stock is displayed in inches and submits exact millimetre dimensions', () => {
   const {form,inputs}=fixture();
   convertInputs(form,'mm','in');
-  fillStockInputs(form,{shape:'rectangle',width:76.2,height:50.8,wall:3.175},'in');
+  fillStockInputs(form,{shape:'rectangle',width:76.2,height:50.8,wall:3.175,corner_radius:6.35},'in');
   assert.equal(inputs.shape.value,'rectangle');
   assert.equal(inputs.width.value,'3');
   assert.equal(inputs.height.value,'2');
   assert.equal(inputs.wall.value,'0.125');
+  assert.equal(inputs.corner_radius.value,'0.25');
+  assert.equal(normalizeFormData(new FormData(),form,'in').get('corner_radius'),'6.35');
   assert.equal(normalizeFormData(new FormData(),form,'in').get('wall'),'3.175');
   convertInputs(form,'in','mm');
   assert.equal(inputs.width.value,'76.2');

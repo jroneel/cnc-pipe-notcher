@@ -21,11 +21,12 @@ const assert=require('node:assert/strict');
     assert.equal(navigations,0);
     page.off('framenavigated',track);
     await page.unroute('**/static/units.mjs*');
-    for(const [shape,height] of [['round',50],['square',50],['rectangle',40]]){
+    for(const [model,shape,height,radius] of [['round','round',50,0],['square','square',50,0],['rectangle','rectangle',40,0],['rounded-square','square',50,8],['rounded-rectangle','rectangle',40,8]]){
       await page.goto(base);
-      await page.locator('#model').setInputFiles(`examples/${shape}-oblique-tube.stl`);
+      await page.locator('#model').setInputFiles(`examples/${model}-oblique-tube.stl`);
       await page.waitForFunction(()=>document.querySelector('input[name=width]').value!=='');
       assert.equal(await page.locator('#shape').inputValue(),shape);
+      assert.ok(Math.abs(Number(await page.locator('input[name=corner_radius]').inputValue())-radius)<.01);
       for(const [name,value] of [['width',50],['height',height],['wall',3]]){
         const field=page.locator(`input[name=${name}]`);
         assert.ok(Math.abs(Number(await field.inputValue())-value)<.001);

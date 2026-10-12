@@ -7,12 +7,22 @@ from cam import CAMError, plan, gcode, load_mesh
 from app import app
 
 
-def tube_mesh(shape="round", width=50, height=40, wall=3):
+def tube_mesh(shape="round", width=50, height=40, wall=3, corner_radius=0):
     n = 720 if shape == "round" else 4
     if shape == "round":
         angles = np.linspace(0, 2*math.pi, n, endpoint=False)
         outer = np.column_stack([width/2*np.cos(angles), width/2*np.sin(angles)])
         inner = outer*(1-wall/(width/2))
+    elif corner_radius:
+        outer,inner=[],[]
+        for i,(sy,sz) in enumerate([(1,1),(-1,1),(-1,-1),(1,-1)]):
+            centre=np.array([sy*(width/2-corner_radius),sz*(height/2-corner_radius)])
+            for angle in np.linspace(i*math.pi/2,(i+1)*math.pi/2,65):
+                direction=np.array([math.cos(angle),math.sin(angle)])
+                outer.append(centre+corner_radius*direction)
+                inner.append(centre+(corner_radius-wall)*direction)
+        outer,inner=np.array(outer),np.array(inner)
+        n=len(outer)
     else:
         outer = np.array([[width/2,height/2],[-width/2,height/2],[-width/2,-height/2],[width/2,-height/2]])
         inner = outer*np.array([(width-2*wall)/width,(height-2*wall)/height])
