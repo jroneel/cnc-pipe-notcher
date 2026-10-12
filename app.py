@@ -1,12 +1,24 @@
 import io
 import hashlib
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, send_from_directory
 from cam import CAMError, load_mesh, plan, gcode
 from werkzeug.exceptions import HTTPException
 from stock import detect_stock
 
-app = Flask(__name__)
+class CAMApp(Flask):
+    def send_static_file(self, filename):
+        if filename.endswith('.mjs'):
+            # Windows registry mappings can label .mjs as binary data. Browsers
+            # reject such modules. Always send fresh, explicitly typed JavaScript.
+            response = send_from_directory(self.static_folder, filename,
+                                           mimetype='text/javascript', conditional=False)
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        return super().send_static_file(filename)
+
+
+app = CAMApp(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
@@ -14,7 +26,8 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 @app.context_processor
 def asset_versions():
     def static_version(filename):
-        return hashlib.sha256((Path(app.static_folder) / filename).read_bytes()).hexdigest()[:16]
+        contents = (Path(app.static_folder) / filename).read_bytes()
+        return hashlib.sha256(b'javascript-delivery-v2:' + contents).hexdigest()[:16]
     return {"static_version": static_version}
 
 

@@ -22,9 +22,9 @@ document.querySelector('#settings').addEventListener('submit', event => event.pr
 (async () => {
 try {
 const moduleURL = new URL(location.href); moduleURL.pathname = moduleURL.pathname.replace(/\/?$/, "/") + "static/api.mjs"; moduleURL.search = "?v={{ static_version('api.mjs') }}"; moduleURL.hash = "";
-const {readPlanResponse, planURL} = await import(moduleURL.href);
+const {readPlanResponse, planURL} = await import(moduleURL.href).catch(error=>{throw new Error(`Could not load api.mjs: ${error.message}`);});
 const unitsURL = new URL("units.mjs", moduleURL); unitsURL.search = "?v={{ static_version('units.mjs') }}";
-const {convertInputs, normalizeFormData, displayLength, fillStockInputs} = await import(unitsURL.href);
+const {convertInputs, normalizeFormData, displayLength, fillStockInputs} = await import(unitsURL.href).catch(error=>{throw new Error(`Could not load units.mjs: ${error.message}`);});
 const form=document.querySelector('form'),statusBox=document.querySelector('#status'),canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');let unit='mm';let result=null,yaw=.6,pitch=.45,drag=null;
 const mode=document.querySelector('#stock-mode'),stockStatus=document.querySelector('#stock-status');let detectionRequest=null;
 function setStockMode(){const automatic=mode.value==='auto';form.elements.namedItem('shape').disabled=automatic;for(const name of ['width','height','wall']){const input=form.elements.namedItem(name);input.disabled=automatic;input.readOnly=automatic;input.required=!automatic&&(name!=='height'||form.elements.namedItem('shape').value==='rectangle');}}

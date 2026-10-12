@@ -4,8 +4,9 @@ const assert=require('node:assert/strict');
 (async()=>{
   const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium'});
   try{
-    const page=await browser.newPage(),errors=[];
+    const page=await browser.newPage(),errors=[],modules=[];
     page.on('pageerror',e=>errors.push(e.message));
+    page.on('response',response=>{if(response.url().includes('.mjs'))modules.push(response);});
     const base=process.env.NOTCHER_URL||'http://127.0.0.1:5000/';
     // A slow module must not leave a native-submit button that refreshes the page.
     await page.route('**/static/units.mjs*',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.continue();});
@@ -47,6 +48,12 @@ const assert=require('node:assert/strict');
     await page.getByRole('button',{name:'Generate toolpath preview'}).click();
     await page.waitForFunction(()=>document.querySelector('#count').textContent!=='—');
     await page.unroute('**/api/detect');
+    assert.ok(modules.length>0);
+    for(const response of modules){
+      assert.equal(response.status(),200);
+      assert.match(response.headers()['content-type'],/^text\/javascript/);
+      assert.equal(response.headers()['cache-control'],'no-store');
+    }
     await page.getByRole('button',{name:'Switch input and display units to inches'}).click();
     assert.ok(Math.abs(Number(await page.locator('input[name=width]').inputValue())-50/25.4)<1e-10);
     await page.goto(base);
@@ -64,6 +71,7 @@ const assert=require('node:assert/strict');
     await page.route('**/static/units.mjs*',route=>route.fulfill({status:503,contentType:'text/plain',body:'Unavailable'}));
     await page.goto(base);
     await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Application could not start'));
+    assert.match(await page.locator('#status').textContent(),/Could not load units.mjs/);
     assert.equal(await page.locator('#generate').isDisabled(),true);
     console.log('Chromium checks passed: autofill for all shapes, preview, pending detection, inches and manual fallback');
   }finally{await browser.close();}

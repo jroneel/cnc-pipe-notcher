@@ -15,6 +15,8 @@ The app listens on loopback port 5000. Use your development environment's port a
 
 After pulling Python code changes, restart `app.py` and reload the browser. Templates refresh automatically; versioned JavaScript URLs keep modules current. Preview is enabled after the application loads and never uses native form navigation. Startup failures appear in the status panel.
 
+JavaScript modules are explicitly served as `text/javascript`, independently of operating-system file associations. Module responses use `no-store` and do not return conditional 304 responses, preventing an old cached MIME type from blocking application startup.
+
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 node --test tests/*.test.mjs

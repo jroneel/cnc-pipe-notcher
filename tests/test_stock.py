@@ -10,6 +10,23 @@ from test_cam import tube_mesh
 
 
 class StockTests(unittest.TestCase):
+    def test_modules_ignore_os_mime_mappings_and_stale_cache_validators(self):
+        from unittest.mock import patch
+        client=app.test_client()
+        for filename in ['api.mjs','units.mjs']:
+            with patch('mimetypes.guess_type',return_value=('application/octet-stream',None)):
+                response=client.get('/static/'+filename)
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.mimetype,'text/javascript')
+                self.assertEqual(response.headers['Cache-Control'],'no-store')
+                cached=client.get('/static/'+filename,headers={'If-None-Match':response.headers['ETag'],
+                      'If-Modified-Since':response.headers['Last-Modified']})
+                self.assertEqual(cached.status_code,200)
+                self.assertEqual(cached.mimetype,'text/javascript')
+                self.assertEqual(cached.data,response.data)
+                cached.close()
+                response.close()
+
     def test_auto_fields_and_versioned_modules(self):
         import re
         response=app.test_client().get('/')

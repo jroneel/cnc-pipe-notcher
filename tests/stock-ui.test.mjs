@@ -22,7 +22,7 @@ function ui(stock, failure=false) {
   let requests=0;
   const fetch=async url=>{requests++;assert.equal(url,'http://localhost:5000/api/detect');return new Response(JSON.stringify(failure?{error:'Cannot identify tubing'}:stock),{status:failure?400:200,headers:{'Content-Type':'application/json'}});};
   let script=readFileSync(new URL('../templates/index.html',import.meta.url),'utf8').split('<script type="module">')[1].split('</script>')[0];
-  script=script.replace(/^const .*await import\(.*\);$/gm,'');
+  script=script.replace(/^const .*await import.*;$/gm,'');
   vm.runInNewContext(script,{document,location:{href:'http://localhost:5000/'},window:{addEventListener(){}},devicePixelRatio:1,
     URL,FormData,AbortController,fetch,readPlanResponse,planURL,convertInputs,normalizeFormData,displayLength,fillStockInputs});
   fields.model.files=[new Blob(['mesh'])];
