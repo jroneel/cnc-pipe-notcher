@@ -51,6 +51,13 @@ const {readFileSync}=require('node:fs');
       assert.match(text,/VIEWER ONLY/);
       assert.equal(text.split('\n').filter(line=>line.startsWith('G1 X')).length,Number(await page.locator('#count').textContent())-1);
       assert.match(text,/G1 X-?\d+\.\d+ Y-?\d+\.\d+ Z-?\d+\.\d+/);
+      const prusaPromise=page.waitForEvent('download');
+      await page.locator('#prusa-export').click();
+      const prusaDownload=await prusaPromise;
+      assert.equal(prusaDownload.suggestedFilename(),'notcher-prusa-viewer-only.gcode');
+      const prusa=readFileSync(await prusaDownload.path(),'utf8');
+      assert.match(prusa,/DO NOT RUN ON A CNC MACHINE OR 3D PRINTER/);
+      assert.match(prusa,/G1 X.* Y.* Z0\.2000 E/);
     }
     if(process.env.NOTCHER_TEST_MODEL){
       await page.goto(base);

@@ -19,6 +19,7 @@ function ui(stock, failure=false) {
   canvas.getContext=()=>new Proxy({}, {get:()=>()=>{}});
   nodes['#generate']=element();
   nodes['#viewer-export']=element();
+  nodes['#prusa-export']=element();
   const document={querySelector:selector=>selector==='form'?form:selector==='canvas'?canvas:nodes[selector],querySelectorAll:()=>[]};
   let requests=0;
   const fetch=async url=>{requests++;assert.equal(url,'http://localhost:5000/api/detect');return new Response(JSON.stringify(failure?{error:'Cannot identify tubing'}:stock),{status:failure?400:200,headers:{'Content-Type':'application/json'}});};
