@@ -42,3 +42,11 @@ test('unsupported programs cannot masquerade as machine previews',()=>{
   assert.throws(()=>parseMachineGcode('G1 X1 Y1 E1'),/not Y motion/);
   assert.throws(()=>parseMachineGcode('G91\nG1 X1'),/no initial position/);
 });
+
+test('separate hole/end contours retain labels and torch-off transfers',()=>{
+  const program='G21 G90 G94\nM5\nG0 Z100\n(CONTOUR 1: Hole 1)\nG0 X10 A90 B0\nG1 Z25 F800\nM3\nG93\nG1 X11 A95 F20\nM5\nG94\nG0 Z100\n(CONTOUR 2: Positive X end)\nG0 X100 A0 B0\nG1 Z25 F800\nM3\nG93\nG1 A360 F1\nM5\nG94\nG0 Z100\nM2';
+  const parsed=parseMachineGcode(program);
+  const cuts=parsed.segments.filter(segment=>segment.cutting);
+  assert.deepEqual(cuts.map(segment=>segment.contour),['Hole 1','Positive X end']);
+  assert.ok(parsed.segments.some(segment=>segment.contour==='Positive X end'&&segment.rapid&&!segment.cutting));
+});

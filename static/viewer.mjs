@@ -39,16 +39,23 @@ export function createViewer(canvas,controls){
     beam.geometry.dispose();beam.geometry=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...pose.pivot),new THREE.Vector3(...pose.tip),new THREE.Vector3(...beamEnd)]);
     const colour=segment.cutting?0xff7185:0x86bfff;marker.material.color.set(colour);beam.material.color.set(colour);
     head.visible=controls.head.checked;
-    controls.motion.textContent=`Block ${index+1}/${parsed.segments.length} · line ${segment.line} · ${segment.cutting?'TORCH ON':segment.rapid?'RAPID · torch off':'torch off'} · X ${state.X.toFixed(3)} mm Z ${state.Z.toFixed(3)} mm A ${state.A.toFixed(2)}° B ${state.B.toFixed(2)}°`;
+    controls.motion.textContent=`Block ${index+1}/${parsed.segments.length} · ${segment.contour} · line ${segment.line} · ${segment.cutting?'TORCH ON':segment.rapid?'RAPID · torch off':'torch off'} · X ${state.X.toFixed(3)} mm Z ${state.Z.toFixed(3)} mm A ${state.A.toFixed(2)}° B ${state.B.toFixed(2)}°`;
     controls.program.dataset.line=String(segment.line);
   }
   function show(){part.visible=controls.model.checked;cuts.visible=controls.cuts.checked;rapids.visible=controls.rapid.checked;head.visible=!!parsed&&controls.head.checked;}
   for(const control of [controls.model,controls.cuts,controls.rapid,controls.head])control.addEventListener('change',show);
   controls.fit.addEventListener('click',()=>fit(bounds));
-  controls.focus.addEventListener('click',()=>{
+  function focusContour(){
     if(!parsed)return;
-    const box=new THREE.Box3();for(const segment of parsed.segments.filter(s=>s.cutting))for(const point of sampleSegment(segment,pivot,3))box.expandByPoint(new THREE.Vector3(...point));
+    const selected=controls.contour.value;
+    const box=new THREE.Box3();for(const segment of parsed.segments.filter(s=>s.cutting&&(!selected||s.contour===selected)))for(const point of sampleSegment(segment,pivot,3))box.expandByPoint(new THREE.Vector3(...point));
     if(!box.isEmpty())fit(box.expandByScalar(Math.max(5,pivot*.1)));
+  }
+  controls.focus.addEventListener('click',focusContour);
+  controls.contour.addEventListener('change',()=>{
+    playing=false;controls.play.textContent='Play';focusContour();
+    const index=parsed?.segments.findIndex(segment=>segment.cutting&&segment.contour===controls.contour.value);
+    if(index>=0)updatePose((index+.5)/parsed.segments.length);
   });
   controls.slider.addEventListener('input',()=>{playing=false;controls.play.textContent='Play';updatePose(Number(controls.slider.value)/1000);});
   controls.play.addEventListener('click',()=>{if(!parsed)return;if(progress>=1)updatePose(0);playing=!playing;controls.play.textContent=playing?'Pause':'Play';});
@@ -60,7 +67,7 @@ export function createViewer(canvas,controls){
     lastTime=time;orbit.update();renderer.render(scene,camera);
   });
   return {
-    clearProgram(){playing=false;parsed=null;dispose(cuts);dispose(rapids);controls.program.value='';controls.play.textContent='Play';controls.slider.disabled=true;controls.play.disabled=true;updatePose(0);},
+    clearProgram(){playing=false;parsed=null;dispose(cuts);dispose(rapids);canvas.dataset.gcodeSegments='0';canvas.dataset.contourCount='0';controls.program.value='';controls.contour.replaceChildren(new Option('All contours',''));controls.play.textContent='Play';controls.slider.disabled=true;controls.play.disabled=true;updatePose(0);},
     clearModel(){dispose(part);modelReady=false;bounds=null;this.clearProgram();canvas.dataset.modelFaces='0';},
     setModel(model){
       dispose(part);
@@ -71,6 +78,9 @@ export function createViewer(canvas,controls){
     },
     setProgram(program,length){
       this.clearProgram();pivot=length;parsed=parseMachineGcode(program);controls.program.value=program;
+      const names=[...new Set(parsed.segments.filter(s=>s.cutting).map(s=>s.contour))];
+      controls.contour.replaceChildren(new Option('All contours',''),...names.map(name=>new Option(name,name)));
+      canvas.dataset.contourCount=String(names.length);
       const cutVertices=[],rapidVertices=[];
       for(const segment of parsed.segments){
         const points=sampleSegment(segment,pivot),vertices=segment.cutting?cutVertices:rapidVertices;

@@ -1,4 +1,4 @@
-const fields = ['width', 'height', 'wall', 'corner_radius', 'feed', 'standoff', 'clearance', 'pivot'];
+const fields = ['width', 'height', 'wall', 'corner_radius', 'lead_in', 'feed', 'standoff', 'clearance', 'pivot'];
 const values = new WeakMap();
 const limits = new WeakMap();
 const scale = unit => unit === 'in' ? 25.4 : 1;

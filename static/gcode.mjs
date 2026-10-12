@@ -4,7 +4,10 @@ const degrees = Math.PI/180;
 export function parseMachineGcode(program) {
   const lines=program.split(/\r?\n/),segments=[];
   let position={X:null,Z:null,A:null,B:null},absolute=true,units=1,motion=null,torch=false,feed=null,inverse=false;
+  let contour='Program';
   for(let index=0;index<lines.length;index++){
+    const label=lines[index].match(/^\s*\(CONTOUR\s+\d+:\s*([^)]+)\)/i);
+    if(label)contour=label[1].trim();
     const code=lines[index].replace(/\([^)]*\)/g,'').split(';')[0].toUpperCase();
     const words=[...code.matchAll(/([A-Z])\s*([-+]?(?:\d+\.?\d*|\.\d+))/g)].map(match=>[match[1],Number(match[2])]);
     for(const [letter,value] of words){
@@ -37,7 +40,7 @@ export function parseMachineGcode(program) {
       next[letter]=absolute?amount:position[letter]+amount;
     }
     if(axes.every(axis=>position[axis]!==null)&&axes.every(axis=>next[axis]!==null)){
-      segments.push({from:position,to:next,rapid:motion===0,cutting:torch&&motion===1,line:index+1,feed,inverse,
+      segments.push({from:position,to:next,rapid:motion===0,cutting:torch&&motion===1,line:index+1,feed,inverse,contour,
         duration:motion===1&&inverse&&feed>0?60/feed:null});
     }
     position=next;

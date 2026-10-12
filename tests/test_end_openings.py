@@ -4,10 +4,10 @@ import trimesh
 from cam import plan,gcode,CAMError
 
 
-def perforated_tube():
-    axes=[[0,40,60,100],[-25,-22,22,25],[-20,-17,17,20]]
-    cells={(i,j,k) for i in range(3) for j in range(3) for k in range(3)
-           if (j!=1 or k!=1) and (i,j,k)!=(1,1,2)}
+def perforated_tube(blind=False):
+    axes=[[0,40,60,100],[-25,-22,22,25],[-20,-17,17,18,20] if blind else [-20,-17,17,20]]
+    cells={(i,j,k) for i in range(3) for j in range(3) for k in range(len(axes[2])-1)
+           if (j!=1 or k!=1) and not (i==1 and j==1 and k>=(3 if blind else 2))}
     neighbours=[((-1,0,0),[0,4,7,3]),((1,0,0),[1,2,6,5]),
                 ((0,-1,0),[0,1,5,4]),((0,1,0),[3,7,6,2]),
                 ((0,0,-1),[0,3,2,1]),((0,0,1),[4,5,6,7])]
