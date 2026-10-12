@@ -1,6 +1,7 @@
 """Infer constant, hollow, axis-aligned tube stock from transverse mesh sections."""
 import numpy as np
 import trimesh
+from collections import Counter
 from cam import CAMError
 
 
@@ -64,7 +65,18 @@ def circle(points):
     return centre+origin, radius
 
 
+def simplify_loop(points):
+    before = points-np.roll(points, 1, axis=0)
+    after = np.roll(points, -1, axis=0)-points
+    cross = before[:, 0]*after[:, 1]-before[:, 1]*after[:, 0]
+    keep = abs(cross) > 1e-7*np.linalg.norm(before, axis=1)*np.linalg.norm(after, axis=1)+1e-10
+    return points[keep]
+
+
 def rounded_rectangle(points):
+    # Mesh-plane intersections add points along triangle edges. Those chord
+    # interior points are not CAD arc vertices and bias inferred radii.
+    points = simplify_loop(points)
     low, high = points.min(axis=0), points.max(axis=0)
     half = (high-low)/2
     centred = points-(low+high)/2
@@ -78,10 +90,14 @@ def rounded_rectangle(points):
     radius = float(np.median(u+v+np.sqrt(2*u*v)))
     if not 0 < radius <= half.min():
         return None
-    samples = np.vstack([centred, (centred+np.roll(centred, -1, axis=0))/2])
-    q = abs(samples)-(half-radius)
+    q = abs(centred)-(half-radius)
     distance = np.linalg.norm(np.maximum(q, 0), axis=1)+np.minimum(q.max(axis=1), 0)-radius
     if abs(distance).max() > max(.015, radius*.005):
+        return None
+    midpoints = (centred+np.roll(centred, -1, axis=0))/2
+    q = abs(midpoints)-(half-radius)
+    chord_distance = np.linalg.norm(np.maximum(q, 0), axis=1)+np.minimum(q.max(axis=1), 0)-radius
+    if abs(chord_distance).max() > max(.015, radius*.04):
         return None
     # Each quadrant must include a curve; reject asymmetric chamfers or missing corners.
     if len(set(map(tuple, np.sign(centred[corner])))) != 4:
@@ -130,15 +146,22 @@ def classify(outer, inner):
 
 
 def detect_stock(mesh):
-    sections = []
+    sections, failures = [], Counter()
     for fraction in [.15, .25, .35, .5, .65, .75, .85]:
         x = float(mesh.bounds[0, 0]+mesh.extents[0]*fraction)
         try:
-            sections.append(classify(*section_loops(mesh, x)))
-        except CAMError:
+            outer, inner = section_loops(mesh, x)
+            section = classify(outer, inner)
+            section['outer_profile'] = (simplify_loop(outer)-section['centre']).tolist()
+            sections.append(section)
+        except CAMError as exc:
+            failures[str(exc)] += 1
             continue
     if len(sections) < 2:
-        raise CAMError("Cannot automatically identify tubing. Use a hollow, constant-section model with length along X and at least two intact cross-sections. Solid, irregular or heavily cut models need manual stock settings.")
+        detail = '; '.join(f'{reason} ({count}/7 sections)' for reason,count in failures.most_common(3))
+        raise CAMError("Cannot automatically identify tubing. Use a hollow, constant-section model with length along X and at least two intact cross-sections. "
+                       f"Detected {len(sections)} supported sections. Rejection details: {detail}. "
+                       f"Model extents X/Y/Z: {mesh.extents[0]:.3f}/{mesh.extents[1]:.3f}/{mesh.extents[2]:.3f} mm.")
     first = sections[0]
     for section in sections[1:]:
         if section['shape'] != first['shape'] or any(
@@ -149,4 +172,5 @@ def detect_stock(mesh):
     if np.linalg.norm(first['centre']-mesh.bounds.mean(axis=0)[1:]) > max(.02, first['width']*.001):
         raise CAMError("Model bounds do not preserve the tube centre; manual alignment is required")
     return {**{key: float(np.median([s[key] for s in sections])) for key in ['width','height','wall','corner_radius','inner_corner_radius']},
-            'shape': first['shape'], 'sections_checked': len(sections)}
+            'shape': first['shape'], 'sections_checked': len(sections),
+            **({'outer_profile': first['outer_profile']} if first['corner_radius']>0 else {})}

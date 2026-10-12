@@ -63,6 +63,20 @@ def x_intersections(triangles, y, z):
     return np.unique(np.round((a[:, 0]+u*v[:, 0]+t*w[:, 0])[inside], 8))
 
 
+def profile_point(angle, profile):
+    direction = np.array([math.cos(angle),math.sin(angle)])
+    edges = np.roll(profile, -1, axis=0)-profile
+    determinant = direction[0]*edges[:,1]-direction[1]*edges[:,0]
+    valid = abs(determinant)>1e-12
+    p,e,d = profile[valid],edges[valid],determinant[valid]
+    radial = (p[:,0]*e[:,1]-p[:,1]*e[:,0])/d
+    fraction = (p[:,0]*direction[1]-p[:,1]*direction[0])/d
+    hits = radial[(radial>0)&(fraction>=-1e-8)&(fraction<=1+1e-8)]
+    if len(hits)==0:
+        raise CAMError('Measured stock profile is not closed around the tube centre')
+    return tuple(direction*float(hits.max()))
+
+
 def plan(mesh, settings):
     shape = settings.get("shape", "round")
     if shape not in ("round", "square", "rectangle"):
@@ -92,6 +106,12 @@ def plan(mesh, settings):
     if abs(extents[1]-width) > max(.5, width*.02) or abs(extents[2]-height) > max(.5, height*.02):
         raise CAMError("Model Y/Z dimensions do not match stock. Orient tube length along X and use millimetres.")
     angles = list(np.linspace(0, 2*math.pi, samples, endpoint=False))
+    profile = None
+    if corner_radius and 'outer_profile' in settings:
+        profile = np.asarray(settings['outer_profile'], dtype=float)
+        if profile.ndim!=2 or profile.shape[1]!=2 or len(profile)<4 or not np.isfinite(profile).all():
+            raise CAMError('Invalid measured stock profile')
+        angles += [math.atan2(z,y)%(2*math.pi) for y,z in profile]
     # Include rectangular corners, where the rotary height slope changes.
     if shape != "round":
         corner = math.atan2(height, width)
@@ -104,7 +124,7 @@ def plan(mesh, settings):
     points = []
     bevel_offset = wall*math.tan(math.radians(bevel))
     for angle in angles:
-        y, z = stock_point(angle, shape, width, height, corner_radius)
+        y,z = profile_point(angle,profile) if profile is not None else stock_point(angle, shape, width, height, corner_radius)
         radius = math.hypot(y, z)
         # Sample just inside the stock envelope to avoid a tangent mesh ray.
         inset = min(wall*.05, .05)

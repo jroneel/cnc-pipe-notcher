@@ -21,7 +21,7 @@ const assert=require('node:assert/strict');
     assert.equal(navigations,0);
     page.off('framenavigated',track);
     await page.unroute('**/static/units.mjs*');
-    for(const [model,shape,height,radius] of [['round','round',50,0],['square','square',50,0],['rectangle','rectangle',40,0],['rounded-square','square',50,8],['rounded-rectangle','rectangle',40,8]]){
+    for(const [model,shape,height,radius] of [['round','round',50,0],['square','square',50,0],['rectangle','rectangle',40,0],['rounded-square','square',50,8],['rounded-rectangle','rectangle',40,8],['coarse-rounded-rectangle','rectangle',40,8]]){
       await page.goto(base);
       await page.locator('#model').setInputFiles(`examples/${model}-oblique-tube.stl`);
       await page.waitForFunction(()=>document.querySelector('input[name=width]').value!=='');

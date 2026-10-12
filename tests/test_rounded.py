@@ -9,6 +9,20 @@ from test_cam import tube_mesh
 
 
 class RoundedTests(unittest.TestCase):
+    def test_coarse_cad_exports_detect_and_plan_on_actual_facets(self):
+        for shape,height in [('square',50),('rectangle',40)]:
+            for segments in [3,4,8,16]:
+                with self.subTest(shape=shape,segments=segments):
+                    mesh=tube_mesh(shape,50,height,3,8,segments)
+                    stock=detect_stock(mesh)
+                    self.assertAlmostEqual(stock['corner_radius'],8,places=5)
+                    self.assertAlmostEqual(stock['inner_corner_radius'],5,places=5)
+                    result=plan(mesh,{**stock,'samples':72})
+                    for p in result['points']:
+                        radius=math.hypot(p['y'],p['z'])
+                        self.assertAlmostEqual(p['x'],100+.2*p['y']*(1-.05/radius),places=5)
+                        self.assertAlmostEqual(p['machine_z'],radius+1.5,places=5)
+
     def test_detect_square_and_rectangle_radii(self):
         for shape,w,h,r,t in [('square',50,50,8,3),('rectangle',80,45,6,2),('rectangle',30,70,10,4)]:
             with self.subTest(shape=shape):

@@ -107,6 +107,8 @@ class StockTests(unittest.TestCase):
         response=client.post('/api/detect',data={'model':(io.BytesIO(solid),'solid.stl')})
         self.assertEqual(response.status_code,400)
         self.assertIn('Cannot automatically identify',response.get_json()['error'])
+        self.assertIn('Rejection details:',response.get_json()['error'])
+        self.assertIn('Model extents X/Y/Z:',response.get_json()['error'])
 
 
 if __name__=='__main__':unittest.main()
