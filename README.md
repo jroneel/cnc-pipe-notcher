@@ -20,6 +20,10 @@ node --test tests/*.test.mjs
 
 ## Inputs
 
+Uploading a model automatically detects round, square or rectangular stock and fills its outer width/diameter, height and wall thickness. The detector measures outer and inner boundaries at seven positions along X, requires at least two complete supported sections, and checks agreement between the measurable sections. Detection also runs before automatic planning/export, so stale form dimensions cannot override the file. Values are mesh-derived measurements, not nominal manufacturer sizes.
+
+Automatic detection requires hollow, constant-section tubing aligned along X. Solid models cannot establish wall thickness. Nonconcentric cavities, changing dimensions, rotated rectangular sections, rounded corners or insufficient intact sections are rejected rather than assigned default stock sizes. Select **Enter stock manually** to supply dimensions when detection is unavailable; the existing toolpath geometry restrictions still apply. Review detected dimensions against the actual material.
+
 The **Units** button toggles millimetres and inches for stock dimensions, feed, standoff, clearance, pivot length and profile statistics. Switching converts existing values; inch inputs are converted to millimetres before planning or export. Angles and sampling counts remain unchanged. Imported meshes must still use millimetre coordinates and G-code remains G21 (millimetres), regardless of the display unit.
 
 Import a watertight STL or OBJ of the finished tube in millimetres, with length along X. Convert STEP to a mesh in CAD first. Y/Z are centred on the model bounding box; X is preserved. Stock dimensions must match the model's full transverse extent. Select the positive or negative X end. Holes/multiple wall intervals are rejected. Mesh intersection samples are up to 0.05 mm inside the stock surface; contour accuracy depends on mesh resolution and sampling. Round mesh facets must be fine enough to contain these samples.

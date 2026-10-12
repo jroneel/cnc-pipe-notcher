@@ -32,3 +32,10 @@ test('API address retains development proxy prefixes', () => {
   assert.equal(planURL('https://host/proxy/5000'),'https://host/proxy/5000/api/plan');
   assert.equal(planURL('http://localhost:5000/'),'http://localhost:5000/api/plan');
 });
+
+test('detection response validates shape and dimensions', async () => {
+  const data={shape:'square',width:50,height:50,wall:3,sections_checked:7};
+  assert.deepEqual(await readPlanResponse(new Response(JSON.stringify(data), {headers:{'Content-Type':'application/json'}}),false,true),data);
+  await assert.rejects(readPlanResponse(new Response('{"shape":"round","width":50}', {headers:{'Content-Type':'application/json'}}),false,true),/invalid tubing/);
+  assert.equal(planURL('https://host/proxy/5000/','detect'),'https://host/proxy/5000/api/detect');
+});

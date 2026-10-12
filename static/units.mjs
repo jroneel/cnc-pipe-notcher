@@ -40,3 +40,12 @@ export function normalizeFormData(data, form, unit) {
 export function displayLength(mm, unit) {
   return (mm / scale(unit)).toFixed(unit === 'in' ? 4 : 2);
 }
+
+export function fillStockInputs(form, stock, unit) {
+  form.elements.namedItem('shape').value = stock.shape;
+  for (const name of ['width', 'height', 'wall']) {
+    const input = form.elements.namedItem(name);
+    input.value = String(Number((stock[name] / scale(unit)).toPrecision(15)));
+    values.set(input, {mm: stock[name], display: input.value});
+  }
+}

@@ -1,4 +1,4 @@
-export async function readPlanResponse(response, exporting = false) {
+export async function readPlanResponse(response, exporting = false, stock = false) {
   const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   const jsonType = type === 'application/json' || type.endsWith('+json');
   if (!jsonType && !(response.ok && exporting && type === 'text/plain')) {
@@ -12,6 +12,13 @@ export async function readPlanResponse(response, exporting = false) {
     throw new Error(`The API returned malformed JSON (HTTP ${response.status}). Check the application server logs.`);
   }
   if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : `Request failed (HTTP ${response.status})`);
+  if (stock) {
+    if (!['round', 'square', 'rectangle'].includes(data?.shape) ||
+        !['width', 'height', 'wall'].every(k => Number.isFinite(data[k]) && data[k] > 0)) {
+      throw new Error('The API returned invalid tubing dimensions.');
+    }
+    return data;
+  }
   if (exporting || !Array.isArray(data?.points) || data.points.length < 2 ||
       !data.points.every(p => ['x', 'y', 'z', 'a'].every(k => Number.isFinite(p[k]))) ||
       !['width', 'height', 'bevel', 'bevel_offset', 'triangles'].every(k => Number.isFinite(data[k])) ||
@@ -21,10 +28,10 @@ export async function readPlanResponse(response, exporting = false) {
   return data;
 }
 
-export function planURL(pageURL) {
+export function planURL(pageURL, endpoint = 'plan') {
   const page = new URL(pageURL);
   // Keep a development proxy's mount prefix rather than posting to its host root.
-  page.pathname = page.pathname.replace(/\/?$/, '/') + 'api/plan';
+  page.pathname = page.pathname.replace(/\/?$/, '/') + 'api/' + endpoint;
   page.search = '';
   page.hash = '';
   return page.href;

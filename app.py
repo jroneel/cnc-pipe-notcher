@@ -2,6 +2,7 @@ import io
 from flask import Flask, render_template, request, jsonify, Response
 from cam import CAMError, load_mesh, plan, gcode
 from werkzeug.exceptions import HTTPException
+from stock import detect_stock
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -12,6 +13,7 @@ def index():
     return render_template("index.html")
 
 
+@app.post("/api/detect")
 @app.post("/api/plan")
 def create_plan():
     upload = request.files.get("model")
@@ -20,7 +22,17 @@ def create_plan():
     try:
         extension = upload.filename.rsplit(".", 1)[-1].lower()
         mesh = load_mesh(io.BytesIO(upload.read()), extension)
-        result = plan(mesh, request.form)
+        if request.path == "/api/detect":
+            return jsonify(detect_stock(mesh))
+        settings = request.form.to_dict()
+        detected = None
+        if settings.get('stock_mode', 'auto') == 'auto':
+            detected = detect_stock(mesh)
+            settings.update(detected)
+        elif settings.get('stock_mode') != 'manual':
+            raise CAMError("Unknown stock detection mode")
+        result = plan(mesh, settings)
+        result['detected_stock'] = detected
         if request.form.get("export") == "yes":
             return Response(gcode(result, request.form), mimetype="text/plain",
                             headers={"Content-Disposition": 'attachment; filename="notcher.nc"'})

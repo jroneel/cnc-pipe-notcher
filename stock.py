@@ -1,0 +1,113 @@
+"""Infer constant, hollow, axis-aligned tube stock from transverse mesh sections."""
+import numpy as np
+import trimesh
+from cam import CAMError
+
+
+def section_loops(mesh, x):
+    segments = trimesh.intersections.mesh_plane(mesh, [1, 0, 0], [x, 0, 0])[:, :, 1:]
+    tolerance = max(float(mesh.extents.max()) * 1e-8, 1e-7)
+    vertices, adjacency = {}, {}
+    for segment in segments:
+        a, b = [tuple(np.round(point / tolerance).astype(np.int64)) for point in segment]
+        if a == b:
+            continue
+        vertices[a], vertices[b] = segment
+        adjacency.setdefault(a, set()).add(b)
+        adjacency.setdefault(b, set()).add(a)
+    if not adjacency or any(len(neighbours) != 2 for neighbours in adjacency.values()):
+        raise CAMError("Cross-section does not contain closed tube boundaries")
+    remaining, loops = set(adjacency), []
+    while remaining:
+        start = next(iter(remaining))
+        current, previous, loop = start, None, []
+        while True:
+            loop.append(vertices[current])
+            remaining.discard(current)
+            following = next(v for v in adjacency[current] if v != previous)
+            previous, current = current, following
+            if current == start:
+                break
+        loops.append(np.array(loop))
+    if len(loops) != 2:
+        raise CAMError("A tube section must have one outer and one inner boundary")
+    def area(points):
+        return abs(np.sum(points[:, 0]*np.roll(points[:, 1], -1)-points[:, 1]*np.roll(points[:, 0], -1)))
+    return sorted(loops, key=area, reverse=True)
+
+
+def rectangle(points):
+    low, high = points.min(axis=0), points.max(axis=0)
+    distances = np.minimum(abs(points-low), abs(points-high)).min(axis=1)
+    tolerance = max(.01, float((high-low).max())*.0005)
+    if distances.max() > tolerance:
+        return None
+    # Check full edges, not only four vertices of an arbitrary quadrilateral.
+    midpoints = (points+np.roll(points, -1, axis=0))/2
+    if np.minimum(abs(midpoints-low), abs(midpoints-high)).min(axis=1).max() > tolerance:
+        return None
+    return low, high
+
+
+def circle(points):
+    origin = points.mean(axis=0)
+    points = points-origin
+    centre, *_ = np.linalg.lstsq(np.column_stack([2*points, np.ones(len(points))]),
+                                np.sum(points**2, axis=1), rcond=None)
+    centre = centre[:2]
+    radii = np.linalg.norm(points-centre, axis=1)
+    radius = float(radii.max())
+    midpoints = (points+np.roll(points, -1, axis=0))/2
+    residual = np.max(abs(np.linalg.norm(np.vstack([points, midpoints])-centre, axis=1)-radius))
+    if radius <= 0 or residual > max(.01, radius*.005):
+        return None
+    return centre+origin, radius
+
+
+def classify(outer, inner):
+    outer_box, inner_box = rectangle(outer), rectangle(inner)
+    if outer_box is not None and inner_box is not None:
+        low, high = outer_box
+        inside_low, inside_high = inner_box
+        width, height = high-low
+        walls = np.concatenate([inside_low-low, high-inside_high])
+        wall = float(walls.mean())
+        if wall <= 0 or np.max(abs(walls-wall)) > max(.01, wall*.02):
+            raise CAMError("Tube wall is not uniform or the cavity is not centred")
+        shape = "square" if abs(width-height) <= max(.01, max(width,height)*.0005) else "rectangle"
+        return dict(shape=shape, width=float(width), height=float(height), wall=wall,
+                    centre=(low+high)/2)
+    outer_circle, inner_circle = circle(outer), circle(inner)
+    if outer_circle is not None and inner_circle is not None:
+        centre, radius = outer_circle
+        inside_centre, inside_radius = inner_circle
+        if np.linalg.norm(centre-inside_centre) > max(.01, radius*.0005):
+            raise CAMError("Round tube cavity is not concentric")
+        if radius <= inside_radius:
+            raise CAMError("No measurable tube wall")
+        return dict(shape="round", width=radius*2, height=radius*2,
+                    wall=radius-inside_radius, centre=centre)
+    raise CAMError("Unsupported section: expected circular or sharp-corner rectangular tubing")
+
+
+def detect_stock(mesh):
+    sections = []
+    for fraction in [.15, .25, .35, .5, .65, .75, .85]:
+        x = float(mesh.bounds[0, 0]+mesh.extents[0]*fraction)
+        try:
+            sections.append(classify(*section_loops(mesh, x)))
+        except CAMError:
+            continue
+    if len(sections) < 2:
+        raise CAMError("Cannot automatically identify tubing. Use a hollow, constant-section model with length along X and at least two intact cross-sections. Solid, rounded-corner or heavily cut models need manual stock settings.")
+    first = sections[0]
+    for section in sections[1:]:
+        if section['shape'] != first['shape'] or any(
+            abs(section[key]-first[key]) > max(.02, first[key]*.002)
+            for key in ['width', 'height', 'wall']) or np.linalg.norm(section['centre']-first['centre']) > .02:
+            raise CAMError("Tube section changes along its length; automatic stock detection requires constant dimensions")
+    # Planning centres by mesh bounds; reject partial stock envelopes rather than misplacing the path.
+    if np.linalg.norm(first['centre']-mesh.bounds.mean(axis=0)[1:]) > max(.02, first['width']*.001):
+        raise CAMError("Model bounds do not preserve the tube centre; manual alignment is required")
+    return {**{key: float(np.median([s[key] for s in sections])) for key in ['width','height','wall']},
+            'shape': first['shape'], 'sections_checked': len(sections)}
