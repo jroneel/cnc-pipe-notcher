@@ -10,6 +10,17 @@ from test_cam import tube_mesh
 
 
 class StockTests(unittest.TestCase):
+    def test_auto_fields_and_versioned_modules(self):
+        import re
+        response=app.test_client().get('/')
+        html=response.data.decode()
+        self.assertEqual(response.headers['Cache-Control'],'no-store')
+        for name in ['width','height','wall']:
+            field=re.search(r'<input name="'+name+r'"[^>]*>',html).group()
+            self.assertNotIn('required',field)
+            self.assertIn('disabled',field)
+        self.assertEqual(len(re.findall(r'\?v=[0-9a-f]{16}',html)),2)
+
     def test_all_stock_types_and_sizes(self):
         for shape, width, height, wall in [('round',76.2,76.2,2.5),('square',63.5,63.5,4),('rectangle',80,45,2),('rectangle',30,70,1.5)]:
             with self.subTest(shape=shape,width=width):

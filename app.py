@@ -1,4 +1,6 @@
 import io
+import hashlib
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response
 from cam import CAMError, load_mesh, plan, gcode
 from werkzeug.exceptions import HTTPException
@@ -8,9 +10,16 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 
+@app.context_processor
+def asset_versions():
+    def static_version(filename):
+        return hashlib.sha256((Path(app.static_folder) / filename).read_bytes()).hexdigest()[:16]
+    return {"static_version": static_version}
+
+
 @app.get("/")
 def index():
-    return render_template("index.html")
+    return Response(render_template("index.html"), headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/detect")

@@ -10,7 +10,7 @@ function ui(stock, failure=false) {
     addEventListener(name,fn){this.events[name]=fn;},setAttribute(k,v){this[k]=v;},
     hasAttribute(k){return k in this;},getAttribute(k){return this[k];}});
   const fields=Object.fromEntries(['width','height','wall','shape','feed','standoff','clearance','pivot','model'].map(name=>[name,element()]));
-  fields.model.files=[new Blob(['mesh'])];
+  fields.model.files=[];
   fields.feed.value='800';fields.standoff.value='1.5';fields.clearance.value='10';fields.pivot.value='0';
   const form=element();form.elements={namedItem:name=>fields[name]};
   const nodes=Object.fromEntries(['status','stock-status','stock-mode','units','export','count','range','offset'].map(id=>['#'+id,element()]));
@@ -24,12 +24,15 @@ function ui(stock, failure=false) {
   script=script.replace(/^const .*await import\(.*\);$/gm,'');
   vm.runInNewContext(script,{document,location:{href:'http://localhost:5000/'},window:{addEventListener(){}},devicePixelRatio:1,
     URL,FormData,AbortController,fetch,readPlanResponse,planURL,convertInputs,normalizeFormData,displayLength,fillStockInputs});
+  fields.model.files=[new Blob(['mesh'])];
   return {fields,nodes,requests:()=>requests};
 }
 
 test('file selection automatically fills read-only stock dimensions in selected units',async()=>{
   const {fields,nodes,requests}=ui({shape:'rectangle',width:76.2,height:50.8,wall:3.175});
   assert.equal(fields.width.readOnly,true);
+  assert.equal(fields.width.required,false);
+  assert.equal(fields.width.disabled,true);
   assert.equal(fields.shape.disabled,true);
   nodes['#units'].events.click();
   await fields.model.events.change();
@@ -53,5 +56,7 @@ test('unsupported files leave no stale dimensions and manual mode unlocks inputs
   nodes['#stock-mode'].value='manual';
   nodes['#stock-mode'].events.change();
   assert.equal(fields.width.readOnly,false);
+  assert.equal(fields.width.required,true);
+  assert.equal(fields.width.disabled,false);
   assert.equal(fields.shape.disabled,false);
 });

@@ -18,6 +18,8 @@ The app listens on loopback port 5000. Use your development environment's port a
 node --test tests/*.test.mjs
 ```
 
+With Playwright available to Node and Chromium installed, test uploads against the running app using `node tests/browser.cjs`. Set `CHROMIUM_PATH` for an alternate browser executable or `NOTCHER_URL` for an alternate app address.
+
 ## Inputs
 
 Uploading a model automatically detects round, square or rectangular stock and fills its outer width/diameter, height and wall thickness. The detector measures outer and inner boundaries at seven positions along X, requires at least two complete supported sections, and checks agreement between the measurable sections. Detection also runs before automatic planning/export, so stale form dimensions cannot override the file. Values are mesh-derived measurements, not nominal manufacturer sizes.
