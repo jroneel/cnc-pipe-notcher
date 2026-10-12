@@ -2,7 +2,7 @@
 import numpy as np
 import trimesh
 from collections import Counter
-from cam import CAMError
+from cam import CAMError, profile_point
 
 
 def section_loops(mesh, x):
@@ -92,7 +92,9 @@ def rounded_rectangle(points):
         return None
     q = abs(centred)-(half-radius)
     distance = np.linalg.norm(np.maximum(q, 0), axis=1)+np.minimum(q.max(axis=1), 0)-radius
-    if abs(distance).max() > max(.015, radius*.005):
+    # STL slices may cross triangulated chord interiors rather than the CAD
+    # circle vertices. Allow inward faceting, but not points outside the fit.
+    if distance.max() > max(.015, radius*.005) or distance.min() < -max(.015, radius*.04):
         return None
     midpoints = (centred+np.roll(centred, -1, axis=0))/2
     q = abs(midpoints)-(half-radius)
@@ -137,8 +139,13 @@ def classify(outer, inner):
         wall = float(walls.mean())
         if wall <= 0 or np.max(abs(walls-wall)) > max(.015, wall*.02):
             raise CAMError("Rounded tube cavity is not centred or has nonuniform walls")
-        if abs(inner_radius-max(radius-wall, 0)) > max(.03, wall*.02):
-            raise CAMError("Inner and outer corner radii do not describe a uniform tube wall")
+        # Real tubes/CAD profiles can have thicker corner material than the
+        # flat faces. Measure the two radii independently instead of forcing
+        # a geometric shell offset. Require the cavity to stay inside stock.
+        outer_profile, inner_profile = outer-(low+high)/2, inner-(low+high)/2
+        for angle in np.linspace(0,2*np.pi,181,endpoint=False):
+            if np.linalg.norm(profile_point(angle,outer_profile)) <= np.linalg.norm(profile_point(angle,inner_profile)):
+                raise CAMError('Inner tube boundary crosses the outer stock profile')
         shape = "square" if abs(width-height) <= max(.01, max(width,height)*.0005) else "rectangle"
         return dict(shape=shape, width=float(width), height=float(height), wall=wall,
                     centre=(low+high)/2, corner_radius=radius, inner_corner_radius=inner_radius)
@@ -153,6 +160,7 @@ def detect_stock(mesh):
             outer, inner = section_loops(mesh, x)
             section = classify(outer, inner)
             section['outer_profile'] = (simplify_loop(outer)-section['centre']).tolist()
+            section['inner_profile'] = (simplify_loop(inner)-section['centre']).tolist()
             sections.append(section)
         except CAMError as exc:
             failures[str(exc)] += 1
@@ -173,4 +181,4 @@ def detect_stock(mesh):
         raise CAMError("Model bounds do not preserve the tube centre; manual alignment is required")
     return {**{key: float(np.median([s[key] for s in sections])) for key in ['width','height','wall','corner_radius','inner_corner_radius']},
             'shape': first['shape'], 'sections_checked': len(sections),
-            **({'outer_profile': first['outer_profile']} if first['corner_radius']>0 else {})}
+            **({'outer_profile': first['outer_profile'], 'inner_profile': first['inner_profile']} if first['corner_radius']>0 else {})}

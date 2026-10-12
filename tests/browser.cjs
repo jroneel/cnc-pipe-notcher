@@ -43,6 +43,17 @@ const assert=require('node:assert/strict');
       });
       assert.ok(drawn>20,'The generated contour must actually be drawn on the canvas');
     }
+    if(process.env.NOTCHER_TEST_MODEL){
+      await page.goto(base);
+      await page.locator('#model').setInputFiles(process.env.NOTCHER_TEST_MODEL);
+      await page.waitForFunction(()=>document.querySelector('input[name=width]').value!=='');
+      assert.ok(Math.abs(Number(await page.locator('input[name=width]').inputValue())-76.2)<.001);
+      assert.ok(Math.abs(Number(await page.locator('input[name=height]').inputValue())-25.4)<.001);
+      await page.getByRole('button',{name:'Generate toolpath preview'}).click();
+      await page.waitForFunction(()=>document.querySelector('#count').textContent!=='—');
+      assert.match(await page.locator('#warnings').textContent(),/does not cut interior holes/);
+      assert.match(await page.locator('#stock-status').textContent(),/4.83 \/ 4.83/);
+    }
     await page.goto(base);
     await page.route('**/api/detect',async route=>{await new Promise(resolve=>setTimeout(resolve,250));await route.continue();});
     await page.locator('#model').setInputFiles('examples/rectangle-oblique-tube.stl');

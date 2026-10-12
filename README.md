@@ -22,7 +22,7 @@ JavaScript modules are explicitly served as `text/javascript`, independently of 
 node --test tests/*.test.mjs
 ```
 
-With Playwright available to Node and Chromium installed, test uploads against the running app using `node tests/browser.cjs`. Set `CHROMIUM_PATH` for an alternate browser executable or `NOTCHER_URL` for an alternate app address.
+With Playwright available to Node and Chromium installed, test uploads against the running app using `node tests/browser.cjs`. Set `CHROMIUM_PATH` for an alternate browser executable or `NOTCHER_URL` for an alternate app address. `NOTCHER_TEST_MODEL` can point to the supplied 3 × 1-inch tube regression file for an additional upload check; the original uploaded file is not stored in this repository.
 
 ## Inputs
 
@@ -32,15 +32,15 @@ Automatic detection requires hollow, constant-section tubing aligned along X. So
 
 The **Units** button toggles millimetres and inches for stock dimensions, feed, standoff, clearance, pivot length and profile statistics. Switching converts existing values; inch inputs are converted to millimetres before planning or export. Angles and sampling counts remain unchanged. Imported meshes must still use millimetre coordinates and G-code remains G21 (millimetres), regardless of the display unit.
 
-Import a watertight STL or OBJ of the finished tube in millimetres, with length along X. Convert STEP to a mesh in CAD first. Y/Z are centred on the model bounding box; X is preserved. Stock dimensions must match the model's full transverse extent. Select the positive or negative X end. Holes/multiple wall intervals are rejected. Mesh intersection samples are up to 0.05 mm inside the stock surface; contour accuracy depends on mesh resolution and sampling. Round mesh facets must be fine enough to contain these samples.
+Import a watertight STL or OBJ of the finished tube in millimetres, with length along X. Convert STEP to a mesh in CAD first. Y/Z are centred on the model bounding box; X is preserved. Stock dimensions must match the model's full transverse extent. Select the positive or negative X end. Interior openings may split a longitudinal ray into several intervals. End profiling uses the outermost boundary of the selected end on a connected tube, and prominently warns that the program does not cut those interior openings. Separate tube bodies are rejected. Mesh intersection samples are up to 0.05 mm inside the stock surface; contour accuracy depends on mesh resolution and sampling. Round mesh facets must be fine enough to contain these samples.
 
 Try the meshes in `examples/`: round and square use 50 mm outer size; rectangular uses 50 × 40 mm. All have 3 mm walls and an oblique positive-X end. The rounded-square and rounded-rectangle examples have 8 mm outer / 5 mm inner corner radii. A coarse-rounded-rectangle example uses four facets per corner to exercise lower-resolution CAD exports. These synthetic fixtures make the initial workflow easy to try.
 
 ## Rounded corners
 
-Keep real corner geometry in the model. Rounded rectangular/square detection fits equal-radius circular arcs at all four corners and checks both inner and outer boundaries against uniform wall thickness. Detected radii are mesh-derived estimates; adequate mesh resolution is required. In manual mode enter the outer corner radius (zero for sharp corners). For rounded tubing it must be at least wall thickness and no greater than half the smaller outer dimension; inner radius is outer radius minus wall.
+Keep real corner geometry in the model. Rounded rectangular/square detection fits equal-radius circular arcs at all four corners and measures the inner and outer corner radii independently. Wall thickness is measured on the flat faces; thicker corner material is supported as long as the cavity stays inside the outer profile. Detected radii are mesh-derived estimates; adequate mesh resolution is required. In manual mode enter the outer corner radius (zero for sharp corners). For rounded tubing it must be at least wall thickness and no greater than half the smaller outer dimension; inner radius is outer radius minus wall.
 
-Automatic toolpath surface points and Z height follow the measured outer mesh cross-section, with extra samples at facet vertices and flat/arc transitions. Radius fitting removes collinear triangle-intersection points so coarse STL/OBJ facets do not bias the inferred radius. Manual mode uses an ideal rounded envelope. Preview and exported G-code use the same geometry. Unequal radii, non-circular corners, off-centre cavities and variable stock sections remain unsupported by automatic detection. Standoff and bevel remain relative to the radial direction; this does not add surface-normal torch orientation on the corner curves.
+Automatic toolpath surface points and Z height follow the measured outer mesh cross-section, with extra samples at facet vertices and flat/arc transitions. Radius fitting removes collinear triangle-intersection points so coarse STL/OBJ facets do not bias the inferred radius. Manual mode uses an ideal rounded envelope. Preview and exported G-code use the same geometry. Unequal radii between different corners on the same boundary, non-circular corners, off-centre cavities and variable stock sections remain unsupported by automatic detection. Standoff and bevel remain relative to the radial direction; this does not add surface-normal torch orientation on the corner curves.
 
 ## Four axes
 
@@ -51,7 +51,7 @@ Automatic toolpath surface points and Z height follow the measured outer mesh cr
 
 Enter the measured pivot-to-tip distance L. For signed tilt b, the commanded pivot is `X = model_edge_X - L*sin(b)` and `Z = stock_radius + standoff + L*cos(b)`. At B0, the pivot must therefore be L above the tip; use that convention when setting Z zero. The physical torch direction must match this definition. This assumes the tool tip lies on the tilt arm, with no other offsets; an offset head needs a different model.
 
-The bevel is relative to the **radial cutting direction**. It is not a constant angle relative to a notch's local contour normal or a rectangular face normal. A single tilt axis cannot generally satisfy arbitrary bevel orientations. The amber preview estimates the axial inner-wall intersection using `wall*tan(b)`; on rectangular faces the radial wall traversal is longer than wall thickness, so this preview is illustrative only. The outer-edge path remains at the imported contour, with head pivot compensation applied in G-code.
+The bevel is relative to the **radial cutting direction**. It is not a constant angle relative to a notch's local contour normal or a rectangular face normal. A single tilt axis cannot generally satisfy arbitrary bevel orientations. For automatically detected rounded tubing, the amber preview uses the measured radial distance between outer and inner profiles, multiplied by `tan(b)`. Other stock modes use the nominal `wall*tan(b)` allowance. This remains an estimated intersection, not a full material-removal simulation. The outer-edge path remains at the imported contour, with head pivot compensation applied in G-code.
 
 ## Output and qualification
 

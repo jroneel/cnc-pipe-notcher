@@ -9,6 +9,18 @@ from test_cam import tube_mesh
 
 
 class RoundedTests(unittest.TestCase):
+    def test_independent_inner_radius_like_uploaded_tube(self):
+        mesh=tube_mesh('rectangle',76.2,25.4,2.413,4.826,8,inner_corner_radius=4.826)
+        stock=detect_stock(mesh)
+        self.assertAlmostEqual(stock['corner_radius'],4.826,places=5)
+        self.assertAlmostEqual(stock['inner_corner_radius'],4.826,places=5)
+        self.assertAlmostEqual(stock['wall'],2.413,places=5)
+        result=plan(mesh,{**stock,'bevel':30,'pivot':100})
+        self.assertAlmostEqual(result['inner_corner_radius'],4.826,places=5)
+        self.assertGreater(max(p['radial_wall'] for p in result['points']),stock['wall']+.5)
+        for point in result['points']:
+            self.assertAlmostEqual(point['inner_x']-point['x'],point['radial_wall']*math.tan(math.pi/6),places=5)
+
     def test_coarse_cad_exports_detect_and_plan_on_actual_facets(self):
         for shape,height in [('square',50),('rectangle',40)]:
             for segments in [3,4,8,16]:

@@ -77,6 +77,20 @@ def profile_point(angle, profile):
     return tuple(direction*float(hits.max()))
 
 
+def connected_mesh(mesh):
+    parents = list(range(len(mesh.vertices)))
+    def root(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+    for face in mesh.faces:
+        base = root(int(face[0]))
+        for vertex in face[1:]:
+            parents[root(int(vertex))] = base
+    return len({root(int(v)) for v in np.unique(mesh.faces)}) == 1
+
+
 def plan(mesh, settings):
     shape = settings.get("shape", "round")
     if shape not in ("round", "square", "rectangle"):
@@ -85,7 +99,7 @@ def plan(mesh, settings):
     height = width if shape != "rectangle" else number(settings, "height", 40, 1, 2000)
     wall = number(settings, "wall", 3, .1, min(width, height)/2-.01)
     corner_radius = 0 if shape == 'round' else number(settings, 'corner_radius', 0, 0, min(width,height)/2)
-    if 0 < corner_radius < wall:
+    if 0 < corner_radius < wall and 'outer_profile' not in settings:
         raise CAMError("Outer corner radius must be at least wall thickness for a uniform-wall rounded tube")
     samples = int(number(settings, "samples", 360, 36, 1440))
     bevel = number(settings, "bevel", 0, -60, 60)
@@ -105,13 +119,20 @@ def plan(mesh, settings):
     extents = mesh.extents
     if abs(extents[1]-width) > max(.5, width*.02) or abs(extents[2]-height) > max(.5, height*.02):
         raise CAMError("Model Y/Z dimensions do not match stock. Orient tube length along X and use millimetres.")
+    if not connected_mesh(mesh):
+        raise CAMError('Separate tube bodies cannot be combined into a single end contour')
     angles = list(np.linspace(0, 2*math.pi, samples, endpoint=False))
     profile = None
+    inner_profile = None
     if corner_radius and 'outer_profile' in settings:
         profile = np.asarray(settings['outer_profile'], dtype=float)
         if profile.ndim!=2 or profile.shape[1]!=2 or len(profile)<4 or not np.isfinite(profile).all():
             raise CAMError('Invalid measured stock profile')
         angles += [math.atan2(z,y)%(2*math.pi) for y,z in profile]
+        if 'inner_profile' in settings:
+            inner_profile = np.asarray(settings['inner_profile'],dtype=float)
+            if inner_profile.ndim!=2 or inner_profile.shape[1]!=2 or len(inner_profile)<4 or not np.isfinite(inner_profile).all():
+                raise CAMError('Invalid measured inner stock profile')
     # Include rectangular corners, where the rotary height slope changes.
     if shape != "round":
         corner = math.atan2(height, width)
@@ -122,6 +143,7 @@ def plan(mesh, settings):
                 angles += [tangent, math.pi-tangent, math.pi+tangent, 2*math.pi-tangent]
     angles = sorted(set(round(float(a), 12) for a in angles))
     points = []
+    internal_openings = False
     bevel_offset = wall*math.tan(math.radians(bevel))
     for angle in angles:
         y,z = profile_point(angle,profile) if profile is not None else stock_point(angle, shape, width, height, corner_radius)
@@ -132,18 +154,23 @@ def plan(mesh, settings):
         if len(hits) < 2:
             raise CAMError(f"No tube wall at {math.degrees(angle):.1f}°. Check stock size, mesh orientation and round tessellation.")
         if len(hits) > 2:
-            raise CAMError("Multiple wall intervals detected: holes or internal cuts require a separate contour strategy")
+            internal_openings = True
         x = float(hits[-1] if end == "max" else hits[0])
+        radial_wall = radius-math.hypot(*profile_point(angle,inner_profile)) if inner_profile is not None else wall
+        if radial_wall <= 0:
+            raise CAMError('Inner tube boundary crosses the outer stock profile')
         points.append({"x": x, "y": float(y), "z": float(z), "a": math.degrees(angle),
+                       "radial_wall": radial_wall, "inner_x": x+radial_wall*math.tan(math.radians(bevel)),
                        "machine_x": x-pivot*math.sin(math.radians(bevel)),
                        "machine_z": radius+standoff+pivot*math.cos(math.radians(bevel))})
     points.append({**points[0], "a": 360.0})
     return {"points": points, "shape": shape, "width": width, "height": height,
-            "corner_radius": corner_radius, "inner_corner_radius": max(corner_radius-wall,0),
+            "corner_radius": corner_radius, "inner_corner_radius": float(settings.get('inner_corner_radius',max(corner_radius-wall,0))),
             "wall": wall, "bevel": bevel, "bevel_offset": bevel_offset, "pivot": pivot,
+            "internal_openings": internal_openings,
             "feed": feed, "clearance": clearance, "standoff": standoff,
             "bounds": mesh.bounds.tolist(), "triangles": len(mesh.faces),
-            "warnings": ["End contours only; holes and disconnected profiles are rejected.",
+            "warnings": (["Internal openings are present. This program cuts only the selected tube end; it does not cut interior holes."] if internal_openings else []) + ["End contours only; separate tube bodies are rejected.",
                          "No kerf compensation, lead-in, collision checking or automatic torch-height control.",
                          "Rectangular corner geometry uses the detected or specified outer corner radius.",
                          "Feed is converted to inverse time for coordinated linear/rotary motion.",
@@ -172,6 +199,8 @@ def gcode(result, settings):
              f"G0 X{points[0]['machine_x']:.4f} A0 B{bevel:.4f}",
              f"G1 Z{points[0]['machine_z']:.4f} F{result['feed']:.3f}",
              "M3", "G4 P0.5", "G93"]
+    if result.get('internal_openings'):
+        lines.insert(1,'(INTERIOR OPENINGS IN MODEL ARE NOT INCLUDED - SELECTED END ONLY)')
     for prev, p in zip(points, points[1:]):
         distance = math.sqrt((p['machine_x']-prev['machine_x'])**2+
                              (p['y']-prev['y'])**2+(p['z']-prev['z'])**2)
